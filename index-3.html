@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ບັນທຶກເຂົ້າ-ອອກພະນັກງານ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#1B2430;
+    --ink-soft:#3B4759;
+    --paper:#EAEFEE;
+    --card:#FFFFFF;
+    --line:#D7DCDA;
+    --green:#2F7D5D;
+    --green-soft:#E4F0EA;
+    --amber:#C97A2B;
+    --amber-soft:#F6E9DA;
+    --red:#B5432F;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); min-height:100vh; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:'Georgia','Noto Serif Lao',serif; font-weight:700; margin:0;}
+  .mono{font-variant-numeric:tabular-nums; letter-spacing:0.02em;}
+
+  header{padding:20px 20px 16px; background:var(--ink); color:var(--paper);}
+  header h1{font-size:20px; color:#fff;}
+  header p{margin:4px 0 0; font-size:13px; color:#9AA7B5;}
+
+  nav{display:flex; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10;}
+  nav button{flex:1; padding:14px 8px; border:none; background:none; font-size:14px; color:var(--ink-soft); border-bottom:3px solid transparent; cursor:pointer;}
+  nav button.active{color:var(--ink); border-bottom-color:var(--green); font-weight:600;}
+
+  main{max-width:640px; margin:0 auto; padding:20px 16px 60px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* --- Scan view --- */
+  .scan-card{background:var(--ink); border-radius:18px; padding:16px; position:relative; overflow:hidden;}
+  .scan-frame{position:relative; aspect-ratio:1/1; border-radius:12px; overflow:hidden; background:#000;}
+  .scan-frame video, .scan-frame canvas{width:100%; height:100%; object-fit:cover;}
+  .scan-frame canvas{display:none;}
+  .scan-reticle{position:absolute; inset:12%; border:2px solid rgba(255,255,255,0.55); border-radius:16px; pointer-events:none;}
+  .scan-status{color:#C7D0DA; font-size:13px; text-align:center; margin-top:12px;}
+  .cam-toggle{display:block; width:100%; margin-top:12px; padding:12px; border-radius:10px; border:1px solid #38455A; background:#232E3D; color:#EAEFEE; font-size:14px; cursor:pointer;}
+
+  .id-panel{background:var(--ink); border-radius:18px; padding:18px; color:#EAEFEE;}
+  .id-panel h3{color:#fff; font-size:15px; margin-bottom:10px; font-family:inherit;}
+  .search-box{width:100%; padding:11px; border-radius:10px; border:1px solid #38455A; background:#232E3D; color:#fff; font-size:14px; margin-bottom:10px;}
+  .search-box::placeholder{color:#8393A5;}
+  .emp-pick-list{max-height:280px; overflow-y:auto;}
+  .emp-pick-row{display:flex; justify-content:space-between; align-items:center; padding:11px 12px; background:#232E3D; border-radius:10px; margin-bottom:8px; cursor:pointer;}
+  .emp-pick-row:active{background:#2C3A4C;}
+  .emp-pick-row .name{font-size:14px; font-weight:600;}
+  .emp-pick-row .id{font-size:11px; color:#8393A5;}
+  .ghost-btn{width:100%; margin-top:6px; padding:11px; border-radius:10px; border:1px solid #38455A; background:none; color:#C7D0DA; font-size:13px; cursor:pointer;}
+
+  .pin-dots{display:flex; justify-content:center; gap:14px; margin:20px 0;}
+  .pin-dots span{width:14px; height:14px; border-radius:50%; border:2px solid #556577; display:inline-block;}
+  .pin-dots span.filled{background:var(--green); border-color:var(--green);}
+  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .keypad button{padding:16px; font-size:18px; border-radius:10px; border:1px solid #38455A; background:#232E3D; color:#fff; cursor:pointer;}
+  .keypad button:active{background:#2C3A4C;}
+  .pin-error{color:#E8998A; font-size:13px; text-align:center; min-height:18px; margin-top:6px;}
+
+  .result-card{margin-top:16px; border-radius:16px; padding:20px; display:none; border:1px solid var(--line); background:var(--card);}
+  .result-card.show{display:block;}
+  .result-card.in{background:var(--green-soft); border-color:var(--green);}
+  .result-card.out{background:var(--amber-soft); border-color:var(--amber);}
+  .result-card.err{background:#F7E4DF; border-color:var(--red);}
+  .result-badge{display:inline-block; font-size:12px; padding:3px 10px; border-radius:999px; background:var(--green); color:#fff; margin-bottom:8px;}
+  .result-card.out .result-badge{background:var(--amber);}
+  .result-card.err .result-badge{background:var(--red);}
+  .result-name{font-size:22px; margin-bottom:2px;}
+  .result-meta{font-size:13px; color:var(--ink-soft);}
+
+  .recent{margin-top:24px;}
+  .recent h3{font-size:14px; color:var(--ink-soft); font-weight:600; margin-bottom:10px; font-family:inherit;}
+  .log-row{display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--card); border:1px solid var(--line); border-radius:10px; margin-bottom:8px; font-size:14px;}
+  .tag{font-size:11px; padding:2px 8px; border-radius:999px;}
+  .tag.in{background:var(--green-soft); color:var(--green);}
+  .tag.out{background:var(--amber-soft); color:var(--amber);}
+
+  .gate{max-width:320px; margin:60px auto; text-align:center;}
+  .gate input{width:100%; padding:12px; font-size:20px; text-align:center; letter-spacing:6px; border:1px solid var(--line); border-radius:10px; margin:16px 0 10px;}
+  .gate button, .primary-btn{width:100%; padding:12px; border:none; border-radius:10px; background:var(--ink); color:#fff; font-size:15px; cursor:pointer;}
+  .gate p.hint{font-size:12px; color:var(--ink-soft);}
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px;}
+  .panel h2{font-size:16px; margin-bottom:12px;}
+  .panel p.desc{font-size:12px; color:var(--ink-soft); margin:-6px 0 12px;}
+  .field{margin-bottom:10px;}
+  .field label{display:block; font-size:12px; color:var(--ink-soft); margin-bottom:4px;}
+  .field input{width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:14px;}
+  .row2{display:flex; gap:10px;}
+  .row2 .field{flex:1;}
+  .secondary-btn{width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); font-size:13px; cursor:pointer; margin-top:6px;}
+
+  .emp-row{display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:var(--card);}
+  .emp-info .id{font-size:12px; color:var(--ink-soft);}
+  .emp-info .name{font-size:15px; font-weight:600;}
+  .emp-actions button{border:1px solid var(--line); background:#fff; padding:6px 10px; border-radius:8px; font-size:12px; margin-left:6px; cursor:pointer;}
+  .emp-actions button.danger{color:var(--red); border-color:#E8C6BE;}
+
+  .modal-backdrop{display:none; position:fixed; inset:0; background:rgba(27,36,48,0.55); align-items:center; justify-content:center; z-index:50; padding:20px;}
+  .modal-backdrop.show{display:flex;}
+  .modal{background:#fff; border-radius:16px; padding:24px; max-width:320px; width:100%; text-align:center;}
+  .modal #stationQrHolder{display:flex; justify-content:center; margin:16px 0;}
+  .modal button{margin-top:10px; padding:10px 16px; border-radius:8px; border:1px solid var(--line); background:#fff; cursor:pointer; font-size:13px;}
+  .modal button.primary-btn{width:auto; display:inline-block;}
+
+  .empty{text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:14px;}
+
+  .station-status{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:12px; padding:10px 12px; border-radius:10px; background:var(--paper);}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--red);}
+  .dot.ok{background:var(--green);}
+
+  .filter-row{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+  .filter-row select, .filter-row input{padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; font-size:11px; color:var(--ink-soft); font-weight:600; padding:8px 6px; border-bottom:1px solid var(--line);}
+  td{padding:9px 6px; border-bottom:1px solid #EEF0EF;}
+  .summary-strip{display:flex; gap:10px; margin-bottom:16px;}
+  .stat{flex:1; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center;}
+  .stat .n{font-size:22px; font-family:'Georgia',serif; font-weight:700;}
+  .stat .l{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ບັນທຶກເຂົ້າ-ອອກພະນັກງານ</h1>
+  <p>ສະແກນຄິວອາໂຄດປະຈຳຈຸດ ແລ້ວເລືອກຊື່ຕົນເອງ</p>
+</header>
+
+<nav>
+  <button class="tab-btn active" data-view="scan">ສະແກນ</button>
+  <button class="tab-btn" data-view="employees">ພະນັກງານ</button>
+  <button class="tab-btn" data-view="report">ລາຍງານ</button>
+</nav>
+
+<main>
+
+  <!-- SCAN VIEW -->
+  <section id="view-scan" class="view active">
+
+    <!-- step: scanning station qr -->
+    <div id="stepScan">
+      <div class="scan-card">
+        <div style="text-align:center; padding:24px 8px;">
+          <div style="font-size:44px; margin-bottom:10px;">📷</div>
+          <div class="scan-status" id="scanStatus">ໃຫ້ໃຊ້ <b>ກ້ອງມືຖືທຳມະດາ</b> (Camera app ຫຼື Google Lens) ສະແກນຄິວອາໂຄດທີ່ຕິດຢູ່ຈຸດສະແກນ — ໜ້ານີ້ຈະເປີດຂຶ້ນມາເອງ</div>
+        </div>
+        <div style="border-top:1px solid #2C3A4C; margin-top:6px; padding-top:16px;">
+          <label style="display:block; font-size:12px; color:#9AA7B5; margin-bottom:6px;">ຫຼືໃສ່ລະຫັດຈຸດສະແກນດ້ວຍຕົນເອງ (ຢູ່ໃຕ້ຄິວອາໂຄດທີ່ຕິດໄວ້)</label>
+          <input type="text" class="search-box" id="manualCode" placeholder="ເຊັ່ນ: A1B2C3" style="text-transform:uppercase; margin-bottom:10px;" onkeydown="if(event.key==='Enter') verifyManualCode();">
+          <button class="cam-toggle" onclick="verifyManualCode()">ຢືນຢັນລະຫັດ</button>
+        </div>
+        <p class="hint" style="font-size:10px; color:#556577; text-align:center; margin-top:14px;">
+          ສະຖານະຈຸດສະແກນ: <span id="scanStationStatusText">-</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- step: pick employee -->
+    <div id="stepPick" style="display:none;">
+      <div class="id-panel">
+        <h3>ຢືນຢັນຕົວຕົນ — ເລືອກຊື່ຂອງທ່ານ</h3>
+        <input type="text" class="search-box" id="empSearch" placeholder="ພິມຄົ້ນຫາຊື່ ຫຼື ລະຫັດ...">
+        <div class="emp-pick-list" id="empPickList"></div>
+        <button class="ghost-btn" onclick="resetToScan()">ຍົກເລີກ</button>
+      </div>
+    </div>
+
+    <!-- step: pin entry -->
+    <div id="stepPin" style="display:none;">
+      <div class="id-panel">
+        <h3 id="pinEmpName">ໃສ່ລະຫັດ PIN</h3>
+        <div class="pin-dots" id="pinDots">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="pin-error" id="pinError">&nbsp;</div>
+        <div class="keypad">
+          <button onclick="pinPress('1')">1</button><button onclick="pinPress('2')">2</button><button onclick="pinPress('3')">3</button>
+          <button onclick="pinPress('4')">4</button><button onclick="pinPress('5')">5</button><button onclick="pinPress('6')">6</button>
+          <button onclick="pinPress('7')">7</button><button onclick="pinPress('8')">8</button><button onclick="pinPress('9')">9</button>
+          <button onclick="resetToScan()">ຍົກເລີກ</button><button onclick="pinPress('0')">0</button><button onclick="pinBackspace()">⌫</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-card" id="resultCard">
+      <span class="result-badge" id="resultBadge">ເຂົ້າ</span>
+      <div class="result-name" id="resultName">-</div>
+      <div class="result-meta" id="resultMeta">-</div>
+      <button class="ghost-btn" style="border-color:var(--line); color:var(--ink-soft); margin-top:14px;" onclick="switchPerson()">ບໍ່ແມ່ນຂ້ອຍ / ປ່ຽນຄົນ</button>
+    </div>
+
+
+    <div class="recent">
+      <h3>ລາຍການລ່າສຸດ</h3>
+      <div id="recentList"><div class="empty">ຍັງບໍ່ມີການສະແກນ</div></div>
+    </div>
+  </section>
+
+  <!-- EMPLOYEES VIEW (admin gated) -->
+  <section id="view-employees" class="view">
+    <div id="empGate" class="gate">
+      <h2>ໜ້າຜູ້ດູແລລະບົບ</h2>
+      <p class="hint">ໃສ່ລະຫັດຜ່ານເພື່ອຈັດການພະນັກງານ</p>
+      <input type="password" id="empPin" maxlength="6" placeholder="••••">
+      <button onclick="checkPin('employees')">ເຂົ້າສູ່ລະບົບ</button>
+      <p class="hint" id="empPinErr" style="color:var(--red);"></p>
+    </div>
+
+    <div id="empContent" style="display:none;">
+
+      <div class="panel">
+        <h2>ຈຸດສະແກນ</h2>
+        <p class="desc">ພິມຄິວອາໂຄດຈຸດດຽວນີ້ອອກມາ ແລະ ຕິດໄວ້ຢູ່ຈຸດທີ່ຕ້ອງການ. ພະນັກງານໃຊ້ <b>ກ້ອງມືຖືທຳມະດາ</b> (ບໍ່ແມ່ນກ້ອງໃນແອັບ) ສະແກນ ແລ້ວໜ້ານີ້ຈະເປີດຂຶ້ນເອງ. ລະບົບຈະກວດໄລຍະຫ່າງ GPS ເພື່ອບໍ່ໃຫ້ສະແກນຈາກຮູບຖ່າຍໄດ້.</p>
+        <div class="station-status">
+          <span class="dot" id="stationDot"></span>
+          <span id="stationStatusText">ຍັງບໍ່ໄດ້ຕັ້ງຈຸດສະແກນ</span>
+        </div>
+        <div class="field">
+          <label>ລິ້ງແອັບ (ຄັດລອກຈາກ address bar ຂອງ Chrome ຕອນເປີດແອັບນີ້ຢູ່ນອກ Claude)</label>
+          <input type="text" id="stationBaseUrl" placeholder="https://your-app-link.com/...">
+        </div>
+        <p class="hint" style="font-size:11px; color:var(--red); margin:-4px 0 10px;">⚠️ ຈຳເປັນຕ້ອງໃສ່ຊ່ອງນີ້! ຖ້າບໍ່ໃສ່, ລິ້ງໃນຄິວອາໂຄດອາດຜິດ ແລະ ກ້ອງມືຖືຈະອ່ານບໍ່ອອກ.</p>
+        <div class="row2">
+          <div class="field">
+            <label>ໄລຍະຫ່າງທີ່ອະນຸຍາດ (ແມັດ)</label>
+            <input type="number" id="stationRadius" value="100" min="10">
+          </div>
+        </div>
+        <button class="primary-btn" onclick="setStationLocation()">📍 ຕັ້ງຈຸດສະແກນທີ່ນີ້ (ຢືນຢູ່ຈຸດແລ້ວກົດ)</button>
+        <button class="secondary-btn" onclick="showStationQr()">ສະແດງ / ພິມຄິວອາໂຄດຈຸດສະແກນ</button>
+        <button class="secondary-btn" onclick="regenerateStationCode()">ສ້າງລະຫັດຈຸດສະແກນໃໝ່ (ຍົກເລີກແຜ່ນເກົ່າ)</button>
+      </div>
+
+      <div class="panel">
+        <h2>ເພີ່ມພະນັກງານໃໝ່</h2>
+        <div class="field">
+          <label>ລະຫັດພະນັກງານ (ID)</label>
+          <input type="text" id="newEmpId" placeholder="ເຊັ່ນ: EMP001">
+        </div>
+        <div class="field">
+          <label>ຊື່ ແລະ ນາມສະກຸນ</label>
+          <input type="text" id="newEmpName" placeholder="ຊື່ ນາມສະກຸນ">
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>ຕຳແໜ່ງ / ພະແນກ (ບໍ່ບັງຄັບ)</label>
+            <input type="text" id="newEmpDept" placeholder="ພະແນກ">
+          </div>
+          <div class="field">
+            <label>ລະຫັດ PIN 4 ໂຕເລກ (ບໍ່ບັງຄັບ)</label>
+            <input type="text" id="newEmpPin" maxlength="4" inputmode="numeric" placeholder="ເຊັ່ນ: 1122">
+          </div>
+        </div>
+        <button class="primary-btn" onclick="addEmployee()">ບັນທຶກພະນັກງານ</button>
+      </div>
+
+      <div class="panel">
+        <h2>ລາຍຊື່ພະນັກງານ (<span id="empCount">0</span>)</h2>
+        <div id="empList"><div class="empty">ຍັງບໍ່ມີພະນັກງານ</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPORT VIEW (admin gated) -->
+  <section id="view-report" class="view">
+    <div id="repGate" class="gate">
+      <h2>ໜ້າຜູ້ດູແລລະບົບ</h2>
+      <p class="hint">ໃສ່ລະຫັດຜ່ານເພື່ອເບິ່ງລາຍງານ</p>
+      <input type="password" id="repPin" maxlength="6" placeholder="••••">
+      <button onclick="checkPin('report')">ເຂົ້າສູ່ລະບົບ</button>
+      <p class="hint" id="repPinErr" style="color:var(--red);"></p>
+    </div>
+
+    <div id="repContent" style="display:none;">
+      <div class="summary-strip">
+        <div class="stat"><div class="n" id="statToday">0</div><div class="l">ສະແກນມື້ນີ້</div></div>
+        <div class="stat"><div class="n" id="statIn">0</div><div class="l">ຢູ່ໃນວຽກ</div></div>
+        <div class="stat"><div class="n" id="statTotal">0</div><div class="l">ພະນັກງານທັງໝົດ</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>ສະຫຼຸບຄິດເງິນເດືອນ (ຕາມຊ່ວງວັນທີ)</h2>
+        <p class="desc">ຄິດໄລ່ຈຳນວນວັນມາ ແລະ ຊົ່ວໂມງລວມຂອງແຕ່ລະຄົນ ໂດຍຈັບຄູ່ "ເຂົ້າ→ອອກ" ໃນຊ່ວງທີ່ເລືອກ</p>
+        <div class="filter-row">
+          <input type="date" id="payFrom">
+          <input type="date" id="payTo">
+          <button class="secondary-btn" style="width:auto; margin:0; padding:8px 14px;" onclick="computePayrollSummary()">ຄິດໄລ່ສະຫຼຸບ</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>ຊື່</th><th>ລະຫັດ</th><th>ຈຳນວນວັນມາ</th><th>ຊົ່ວໂມງລວມ</th></tr></thead>
+            <tbody id="payrollBody"></tbody>
+          </table>
+          <div class="empty" id="payrollEmpty">ເລືອກຊ່ວງວັນທີ ແລ້ວກົດ "ຄິດໄລ່ສະຫຼຸບ"</div>
+        </div>
+        <p class="hint" style="font-size:11px;color:var(--ink-soft);margin-top:8px;">* ໝາຍເຖິງຍັງບໍ່ໄດ້ສະແກນອອກ (ບໍ່ນັບຊົ່ວໂມງຂອງຮອບນັ້ນ)</p>
+        <button class="secondary-btn" onclick="downloadPayrollCsv()">ດາວໂຫຼດສະຫຼຸບເປັນ CSV (Excel)</button>
+      </div>
+
+      <div class="panel">
+        <h2>ລາຍລະອຽດການສະແກນທັງໝົດ</h2>
+        <div class="filter-row">
+          <input type="date" id="filterDate">
+          <select id="filterEmp"><option value="">ພະນັກງານທັງໝົດ</option></select>
+          <button class="secondary-btn" style="width:auto; margin:0; padding:8px 14px;" onclick="loadReport()">ຄົ້ນຫາ</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>ວັນ​ເວລາ</th><th>ລະຫັດ</th><th>ຊື່</th><th>ປະເພດ</th></tr></thead>
+            <tbody id="reportBody"></tbody>
+          </table>
+          <div class="empty" id="reportEmpty" style="display:none;">ບໍ່ພົບຂໍ້ມູນ</div>
+        </div>
+        <button class="secondary-btn" onclick="downloadRawCsv()">ດາວໂຫຼດລາຍລະອຽດເປັນ CSV</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Station QR modal -->
+<div class="modal-backdrop" id="stationQrModal">
+  <div class="modal">
+    <h3>ຄິວອາໂຄດຈຸດສະແກນ</h3>
+    <p class="mono" id="stationQrCode" style="font-size:12px;color:var(--ink-soft);">-</p>
+    <div id="stationQrHolder"></div>
+    <p class="mono" id="stationQrLink" style="font-size:11px; color:var(--ink-soft); word-break:break-all; text-align:left; background:var(--paper); padding:8px; border-radius:8px;">-</p>
+    <p class="hint" style="font-size:11px;">ລອງກົດລິ້ງນີ້ໃນ Chrome ດ້ວຍຕົນເອງກ່ອນ ເພື່ອທົດສອບວ່າຖືກຕ້ອງ</p>
+    <button class="primary-btn" onclick="downloadStationQr()">ດາວໂຫຼດເປັນຮູບພາບ</button>
+    <button onclick="closeStationQrModal()">ປິດ</button>
+  </div>
+</div>
+
+<script>
+const ADMIN_PIN = "1234"; // ປ່ຽນລະຫັດຜ່ານໄດ້ຢູ່ບ່ອນນີ້
+let unlocked = {employees:false, report:false};
+
+let employees = [];
+let logs = [];
+let station = null; // {code, lat, lng, radius, updatedAt}
+
+// ---------- storage helpers ----------
+// Fixed shared data address baked permanently into this file (jsonblob.com) — every
+// device that opens this hosted page automatically reads/writes the exact same shared
+// data. No linking, no IDs to copy/match, no setup. (Public, unauthenticated store —
+// fine for internal attendance use, not for secret data. jsonblob keeps blobs alive
+// as long as they're accessed at least once every 75 days.)
+const KV_URL = 'https://jsonblob.com/api/jsonBlob/01a08a85-237d-7358-807d-6d6b6acf6358';
+async function loadData(){
+  try{
+    const res = await fetch(KV_URL);
+    const state = await res.json();
+    employees = state.employees || [];
+    logs = state.logs || [];
+    station = state.station || null;
+  }catch(err){ employees=[]; logs=[]; station=null; }
+}
+async function persistAll(){
+  try{
+    await fetch(KV_URL, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({employees, logs, station})
+    });
+  }catch(err){ /* offline or blocked — data stays in memory only for this session */ }
+}
+async function saveEmployees(){ await persistAll(); }
+async function saveLogs(){ await persistAll(); }
+async function saveStation(){ await persistAll(); }
+
+// ---------- nav ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view==='employees' && unlocked.employees){ renderEmployees(); renderStationStatus(); }
+    if(btn.dataset.view==='report' && unlocked.report) loadReport();
+  });
+});
+
+function checkPin(which){
+  const pin = document.getElementById(which==='employees'?'empPin':'repPin').value;
+  const errEl = document.getElementById(which==='employees'?'empPinErr':'repPinErr');
+  if(pin===ADMIN_PIN){
+    unlocked[which]=true;
+    document.getElementById(which==='employees'?'empGate':'repGate').style.display='none';
+    document.getElementById(which==='employees'?'empContent':'repContent').style.display='block';
+    if(which==='employees'){ renderEmployees(); renderStationStatus(); }
+    if(which==='report'){
+      populateEmpFilter(); loadReport();
+      const now = new Date();
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+      const today = now.toISOString().slice(0,10);
+      document.getElementById('payFrom').value = firstOfMonth;
+      document.getElementById('payTo').value = today;
+    }
+  }else{
+    errEl.textContent = 'ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ';
+  }
+}
+
+// ---------- station setup ----------
+function randomStationCode(){
+  return Math.random().toString(36).slice(2,8).toUpperCase();
+}
+function renderStationStatus(){
+  const dot = document.getElementById('stationDot');
+  const text = document.getElementById('stationStatusText');
+  renderScanDiagnostics();
+  if(station && station.baseUrl){
+    document.getElementById('stationBaseUrl').value = station.baseUrl;
+  }
+  if(station && station.lat!=null){
+    dot.classList.add('ok');
+    text.textContent = 'ຕັ້ງແລ້ວ · ລັດສະໝີອະນຸຍາດ ' + station.radius + ' ແມັດ · ລະຫັດ ' + station.code + (station.baseUrl ? '' : ' · ⚠️ ຍັງບໍ່ໄດ້ໃສ່ລິ້ງແອັບ');
+    document.getElementById('stationRadius').value = station.radius;
+  }else{
+    dot.classList.remove('ok');
+    text.textContent = 'ຍັງບໍ່ໄດ້ຕັ້ງຈຸດສະແກນ';
+  }
+}
+function getBaseUrl(){
+  let v = document.getElementById('stationBaseUrl').value.trim();
+  if(!v) return null;
+  // strip any existing query/hash so we can cleanly append our own
+  v = v.split('#')[0].split('?')[0];
+  return v;
+}
+async function saveBaseUrlIfChanged(){
+  const v = getBaseUrl();
+  if(!station) station = {code:randomStationCode(), lat:null, lng:null, radius:parseInt(document.getElementById('stationRadius').value)||100};
+  station.baseUrl = v;
+  await saveStation();
+}
+function setStationLocation(){
+  if(!navigator.geolocation){ alert('ອຸປະກອນນີ້ບໍ່ຮອງຮັບການລະບຸທີ່ຕັ້ງ'); return; }
+  const radius = parseInt(document.getElementById('stationRadius').value) || 100;
+  navigator.geolocation.getCurrentPosition(async (pos)=>{
+    station = {
+      code: (station && station.code) ? station.code : randomStationCode(),
+      baseUrl: getBaseUrl() || (station ? station.baseUrl : null) || null,
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      radius: radius,
+      updatedAt: new Date().toISOString()
+    };
+    await saveStation();
+    renderStationStatus();
+    alert('ຕັ້ງຈຸດສະແກນທີ່ຕຳແໜ່ງນີ້ສຳເລັດແລ້ວ');
+  }, (err)=>{
+    alert('ບໍ່ສາມາດອ່ານທີ່ຕັ້ງໄດ້: ' + err.message + ' — ກະລຸນາອະນຸຍາດການເຂົ້າເຖິງທີ່ຕັ້ງ');
+  }, {enableHighAccuracy:true, timeout:10000});
+}
+async function regenerateStationCode(){
+  if(!confirm('ການສ້າງລະຫັດໃໝ່ຈະເຮັດໃຫ້ຄິວອາໂຄດແຜ່ນເກົ່າໃຊ້ບໍ່ໄດ້ອີກ ຕ້ອງພິມແຜ່ນໃໝ່ໄປຕິດແທນ. ດຳເນີນການຕໍ່ບໍ?')) return;
+  if(!station) station = {code:null, lat:null, lng:null, radius:parseInt(document.getElementById('stationRadius').value)||100};
+  station.code = randomStationCode();
+  station.baseUrl = getBaseUrl() || station.baseUrl || null;
+  station.updatedAt = new Date().toISOString();
+  await saveStation();
+  renderStationStatus();
+  showStationQr();
+}
+async function showStationQr(){
+  if(!station || !station.code){
+    if(!station) station = {code:randomStationCode(), lat:null, lng:null, radius:parseInt(document.getElementById('stationRadius').value)||100};
+    else station.code = randomStationCode();
+  }
+  const baseUrl = getBaseUrl();
+  if(baseUrl){ station.baseUrl = baseUrl; }
+  await saveStation();
+
+  if(!station.baseUrl){
+    alert('ກະລຸນາໃສ່ "ລິ້ງແອັບ" ກ່ອນ (ຄັດລອກຈາກ address bar ຂອງ Chrome ຕອນເປີດແອັບນີ້) — ບໍ່ດັ່ງນັ້ນຄິວອາໂຄດອາດອ່ານບໍ່ອອກ');
+    return;
+  }
+  const link = station.baseUrl + '?stn=' + encodeURIComponent(station.code);
+  document.getElementById('stationQrCode').textContent = 'ລະຫັດ: ' + station.code;
+  document.getElementById('stationQrLink').textContent = link;
+  const holder = document.getElementById('stationQrHolder');
+  holder.innerHTML = '';
+  new QRCode(holder, {text: link, width:200, height:200, colorDark:'#1B2430', colorLight:'#ffffff'});
+  document.getElementById('stationQrModal').classList.add('show');
+}
+function closeStationQrModal(){ document.getElementById('stationQrModal').classList.remove('show'); }
+function downloadStationQr(){
+  const canvas = document.querySelector('#stationQrHolder canvas');
+  if(!canvas){ return; }
+  const link = document.createElement('a');
+  link.download = 'station-qr-' + (station ? station.code : 'code') + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ---------- employees ----------
+async function addEmployee(){
+  const id = document.getElementById('newEmpId').value.trim();
+  const name = document.getElementById('newEmpName').value.trim();
+  const dept = document.getElementById('newEmpDept').value.trim();
+  const pin = document.getElementById('newEmpPin').value.trim();
+  if(!id || !name){ alert('ກະລຸນາໃສ່ລະຫັດ ແລະ ຊື່ພະນັກງານ'); return; }
+  if(employees.some(e=>e.id===id)){ alert('ລະຫັດນີ້ຖືກໃຊ້ແລ້ວ'); return; }
+  if(pin && !/^\d{4}$/.test(pin)){ alert('ລະຫັດ PIN ຕ້ອງເປັນໂຕເລກ 4 ໂຕ'); return; }
+  employees.push({id, name, dept, pin: pin || null, createdAt: new Date().toISOString()});
+  await saveEmployees();
+  document.getElementById('newEmpId').value='';
+  document.getElementById('newEmpName').value='';
+  document.getElementById('newEmpDept').value='';
+  document.getElementById('newEmpPin').value='';
+  renderEmployees();
+}
+async function deleteEmployee(id){
+  if(!confirm('ລຶບພະນັກງານນີ້ອອກບໍ?')) return;
+  employees = employees.filter(e=>e.id!==id);
+  await saveEmployees();
+  renderEmployees();
+}
+function renderEmployees(){
+  document.getElementById('empCount').textContent = employees.length;
+  const list = document.getElementById('empList');
+  if(employees.length===0){ list.innerHTML = '<div class="empty">ຍັງບໍ່ມີພະນັກງານ</div>'; return; }
+  list.innerHTML = employees.map(e=>`
+    <div class="emp-row">
+      <div class="emp-info">
+        <div class="name">${escapeHtml(e.name)} ${e.pin?'🔒':''}</div>
+        <div class="id mono">${escapeHtml(e.id)}${e.dept? ' · '+escapeHtml(e.dept):''}</div>
+      </div>
+      <div class="emp-actions">
+        <button class="danger" onclick="deleteEmployee('${escapeAttr(e.id)}')">ລຶບ</button>
+      </div>
+    </div>
+  `).join('');
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return s.replace(/'/g, "\\'"); }
+
+// ---------- geolocation helper ----------
+function getPosition(){
+  return new Promise((resolve,reject)=>{
+    if(!navigator.geolocation){ reject(new Error('ອຸປະກອນນີ້ບໍ່ຮອງຮັບການລະບຸທີ່ຕັ້ງ')); return; }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:10000});
+  });
+}
+function haversineMeters(lat1,lng1,lat2,lng2){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ---------- scan flow state machine (camera-free: QR encodes a URL opened by the phone's own camera) ----------
+let paused = false;
+let pendingEmployee=null, pinBuffer='';
+
+async function verifyManualCode(){
+  const code = document.getElementById('manualCode').value.trim().toUpperCase();
+  if(!code){ return; }
+  await verifyStationCode(code);
+}
+
+async function verifyStationCode(code){
+  if(paused) return;
+  if(!station || !station.code){
+    showResult('err','ຈຸດສະແກນຍັງບໍ່ໄດ້ຕັ້ງຄ່າ','ກະລຸນາໃຫ້ຜູ້ດູແລລະບົບຕັ້ງຄ່າຈຸດສະແກນກ່ອນ');
+    return;
+  }
+  if(code.toUpperCase() !== station.code.toUpperCase()){
+    showResult('err','ລະຫັດຈຸດສະແກນບໍ່ຖືກຕ້ອງ','ນີ້ບໍ່ແມ່ນລະຫັດຂອງຈຸດສະແກນນີ້');
+    return;
+  }
+
+  if(station.lat!=null){
+    paused = true;
+    document.getElementById('scanStatus').textContent = 'ກຳລັງກວດສອບທີ່ຕັ້ງ...';
+    try{
+      const pos = await getPosition();
+      const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, station.lat, station.lng);
+      if(dist > station.radius){
+        showResult('err','ຢູ່ນອກຈຸດສະແກນ','ທ່ານຢູ່ຫ່າງຈາກຈຸດສະແກນປະມານ '+Math.round(dist)+' ແມັດ (ອະນຸຍາດ '+station.radius+' ແມັດ)');
+        paused = false;
+        resetScanStatusText();
+        return;
+      }
+    }catch(err){
+      showResult('err','ບໍ່ສາມາດຢືນຢັນທີ່ຕັ້ງໄດ້','ກະລຸນາອະນຸຍາດການເຂົ້າເຖິງທີ່ຕັ້ງ (Location) ຂອງອຸປະກອນ');
+      paused = false;
+      resetScanStatusText();
+      return;
+    }
+    paused = false;
+  }
+
+  // if this device already identified an employee before, auto check-in/out with no extra steps
+  const myId = localStorage.getItem('att_my_employee_id');
+  if(myId){
+    const emp = employees.find(e=>e.id===myId);
+    if(emp){ finalizeAttendance(emp); return; }
+  }
+  goToPickStep();
+}
+function resetScanStatusText(){
+  document.getElementById('scanStatus').innerHTML = 'ໃຫ້ໃຊ້ <b>ກ້ອງມືຖືທຳມະດາ</b> (Camera app ຫຼື Google Lens) ສະແກນຄິວອາໂຄດທີ່ຕິດຢູ່ຈຸດສະແກນ — ໜ້ານີ້ຈະເປີດຂຶ້ນມາເອງ';
+}
+
+function goToPickStep(){
+  document.getElementById('stepScan').style.display='none';
+  document.getElementById('stepPick').style.display='block';
+  document.getElementById('empSearch').value='';
+  renderEmpPickList('');
+  document.getElementById('empSearch').focus();
+}
+function resetToScan(){
+  paused = false;
+  pendingEmployee = null; pinBuffer='';
+  document.getElementById('stepPick').style.display='none';
+  document.getElementById('stepPin').style.display='none';
+  document.getElementById('stepScan').style.display='block';
+  document.getElementById('resultCard').classList.remove('show');
+  const mc = document.getElementById('manualCode'); if(mc) mc.value='';
+  resetScanStatusText();
+  if(window.location.search){
+    history.replaceState(null, '', window.location.pathname);
+  }
+}
+function switchPerson(){
+  localStorage.removeItem('att_my_employee_id');
+  resetToScan();
+}
+document.getElementById('empSearch').addEventListener('input', (e)=>renderEmpPickList(e.target.value));
+function renderEmpPickList(q){
+  q = q.trim().toLowerCase();
+  const list = document.getElementById('empPickList');
+  const filtered = employees.filter(e => !q || e.name.toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
+  if(filtered.length===0){ list.innerHTML = '<div class="empty" style="color:#8393A5;">ບໍ່ພົບຊື່</div>'; return; }
+  list.innerHTML = filtered.map(e=>`
+    <div class="emp-pick-row" onclick="selectEmployee('${escapeAttr(e.id)}')">
+      <span class="name">${escapeHtml(e.name)}</span>
+      <span class="id mono">${escapeHtml(e.id)}</span>
+    </div>
+  `).join('');
+}
+function selectEmployee(id){
+  const emp = employees.find(e=>e.id===id);
+  if(!emp) return;
+  pendingEmployee = emp;
+  if(emp.pin){
+    pinBuffer='';
+    document.getElementById('pinEmpName').textContent = 'ໃສ່ລະຫັດ PIN ຂອງ ' + emp.name + ' (ຄັ້ງດຽວ, ເພື່ອຈື່ໄວ້ໃນມືຖືນີ້)';
+    document.getElementById('pinError').textContent = '\u00A0';
+    updatePinDots();
+    document.getElementById('stepPick').style.display='none';
+    document.getElementById('stepPin').style.display='block';
+  }else{
+    localStorage.setItem('att_my_employee_id', emp.id);
+    finalizeAttendance(emp);
+  }
+}
+function updatePinDots(){
+  const dots = document.querySelectorAll('#pinDots span');
+  dots.forEach((d,i)=> d.classList.toggle('filled', i < pinBuffer.length));
+}
+function pinPress(digit){
+  if(pinBuffer.length>=4) return;
+  pinBuffer += digit;
+  updatePinDots();
+  if(pinBuffer.length===4){
+    if(pinBuffer === pendingEmployee.pin){
+      const emp = pendingEmployee;
+      localStorage.setItem('att_my_employee_id', emp.id);
+      resetToScan();
+      finalizeAttendance(emp);
+    }else{
+      document.getElementById('pinError').textContent = 'ລະຫັດ PIN ບໍ່ຖືກຕ້ອງ, ລອງໃໝ່';
+      pinBuffer='';
+      setTimeout(updatePinDots, 100);
+    }
+  }
+}
+function pinBackspace(){ pinBuffer = pinBuffer.slice(0,-1); updatePinDots(); }
+
+async function finalizeAttendance(emp){
+  const prev = [...logs].reverse().find(l=>l.id===emp.id);
+  const type = (prev && prev.type==='in') ? 'out' : 'in';
+  const entry = {id: emp.id, name: emp.name, type, timestamp: new Date().toISOString()};
+  logs.push(entry);
+  await saveLogs();
+  showResult(type, emp.name, formatTime(entry.timestamp) + ' · ' + emp.id);
+  renderRecent();
+  paused = false;
+  resetScanStatusText();
+}
+
+function showResult(kind, name, meta){
+  const card = document.getElementById('resultCard');
+  card.className = 'result-card show ' + kind;
+  document.getElementById('resultBadge').textContent = kind==='in' ? 'ເຂົ້າວຽກ' : (kind==='out' ? 'ອອກວຽກ' : 'ຜິດພາດ');
+  document.getElementById('resultName').textContent = name;
+  document.getElementById('resultMeta').textContent = meta;
+  clearTimeout(showResult._t);
+  showResult._t = setTimeout(()=>{ card.classList.remove('show'); }, 6000);
+}
+function renderRecent(){
+  const el = document.getElementById('recentList');
+  const recent = [...logs].reverse().slice(0,8);
+  if(recent.length===0){ el.innerHTML = '<div class="empty">ຍັງບໍ່ມີການສະແກນ</div>'; return; }
+  el.innerHTML = recent.map(l=>`
+    <div class="log-row">
+      <span>${escapeHtml(l.name)} <span class="mono" style="color:var(--ink-soft);font-size:12px;">${escapeHtml(l.id)}</span></span>
+      <span>
+        <span class="tag ${l.type}">${l.type==='in'?'ເຂົ້າ':'ອອກ'}</span>
+        <span class="mono" style="font-size:12px;color:var(--ink-soft);margin-left:6px;">${formatTime(l.timestamp)}</span>
+      </span>
+    </div>
+  `).join('');
+}
+function formatTime(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('lo-LA') + ' ' + d.toLocaleTimeString('lo-LA', {hour:'2-digit',minute:'2-digit'});
+}
+
+// ---------- payroll summary ----------
+let payrollRowsCache = [];
+let payrollRangeCache = null;
+function computePayrollSummary(){
+  const from = document.getElementById('payFrom').value;
+  const to = document.getElementById('payTo').value;
+  if(!from || !to){ alert('ກະລຸນາເລືອກຊ່ວງວັນທີເລີ່ມຕົ້ນ ແລະ ສິ້ນສຸດ'); return; }
+  if(from > to){ alert('ວັນທີເລີ່ມຕົ້ນຕ້ອງບໍ່ຫຼັງວັນທີສິ້ນສຸດ'); return; }
+
+  const filtered = logs.filter(l => {
+    const d = l.timestamp.slice(0,10);
+    return d >= from && d <= to;
+  });
+  const byEmp = {};
+  filtered.forEach(l=>{ (byEmp[l.id] = byEmp[l.id] || []).push(l); });
+
+  const rows = employees.map(e=>{
+    const empLogs = (byEmp[e.id]||[]).slice().sort((a,b)=> a.timestamp.localeCompare(b.timestamp));
+    let totalMs = 0, pendingIn = null, openEnded = false;
+    const daysSet = new Set();
+    empLogs.forEach(l=>{
+      if(l.type==='in'){ pendingIn = l.timestamp; daysSet.add(l.timestamp.slice(0,10)); }
+      else if(l.type==='out' && pendingIn){ totalMs += (new Date(l.timestamp) - new Date(pendingIn)); pendingIn = null; }
+    });
+    if(pendingIn) openEnded = true;
+    return {id:e.id, name:e.name, days:daysSet.size, hours: totalMs/3600000, openEnded};
+  });
+
+  payrollRowsCache = rows;
+  payrollRangeCache = {from, to};
+  renderPayrollTable(rows);
+}
+function renderPayrollTable(rows){
+  const body = document.getElementById('payrollBody');
+  const emptyEl = document.getElementById('payrollEmpty');
+  const activeRows = rows.filter(r=> r.days>0 || r.hours>0);
+  if(activeRows.length===0){
+    body.innerHTML='';
+    emptyEl.style.display='block';
+    emptyEl.textContent = 'ບໍ່ພົບການສະແກນຂອງພະນັກງານໃນຊ່ວງນີ້';
+    return;
+  }
+  emptyEl.style.display='none';
+  body.innerHTML = activeRows.map(r=>`
+    <tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td class="mono">${escapeHtml(r.id)}</td>
+      <td>${r.days}</td>
+      <td>${r.hours.toFixed(1)}${r.openEnded?' <span style="color:var(--amber)">*</span>':''}</td>
+    </tr>
+  `).join('');
+}
+function downloadPayrollCsv(){
+  if(!payrollRowsCache.length){ alert('ກະລຸນາກົດ "ຄິດໄລ່ສະຫຼຸບ" ກ່ອນ'); return; }
+  let csv = 'ລະຫັດ,ຊື່,ຈຳນວນວັນມາ,ຊົ່ວໂມງລວມ\n';
+  payrollRowsCache.forEach(r=>{ csv += `${r.id},"${r.name}",${r.days},${r.hours.toFixed(2)}\n`; });
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'payroll-summary'+(payrollRangeCache? '-'+payrollRangeCache.from+'_to_'+payrollRangeCache.to : '')+'.csv';
+  link.click();
+}
+
+// ---------- report ----------
+let lastReportFiltered = [];
+function populateEmpFilter(){
+  const sel = document.getElementById('filterEmp');
+  sel.innerHTML = '<option value="">ພະນັກງານທັງໝົດ</option>' +
+    employees.map(e=>`<option value="${escapeAttr(e.id)}">${escapeHtml(e.name)} (${escapeHtml(e.id)})</option>`).join('');
+}
+function loadReport(){
+  const dateVal = document.getElementById('filterDate').value;
+  const empVal = document.getElementById('filterEmp').value;
+  let filtered = [...logs].reverse();
+  if(dateVal) filtered = filtered.filter(l=> l.timestamp.slice(0,10) === dateVal);
+  if(empVal) filtered = filtered.filter(l=> l.id === empVal);
+  lastReportFiltered = filtered;
+  const body = document.getElementById('reportBody');
+  const emptyEl = document.getElementById('reportEmpty');
+  if(filtered.length===0){ body.innerHTML=''; emptyEl.style.display='block'; }
+  else{
+    emptyEl.style.display='none';
+    body.innerHTML = filtered.map(l=>`
+      <tr>
+        <td class="mono">${formatTime(l.timestamp)}</td>
+        <td class="mono">${escapeHtml(l.id)}</td>
+        <td>${escapeHtml(l.name)}</td>
+        <td><span class="tag ${l.type}">${l.type==='in'?'ເຂົ້າ':'ອອກ'}</span></td>
+      </tr>
+    `).join('');
+  }
+  const todayStr = new Date().toISOString().slice(0,10);
+  document.getElementById('statToday').textContent = logs.filter(l=>l.timestamp.slice(0,10)===todayStr).length;
+  document.getElementById('statTotal').textContent = employees.length;
+  let currentlyIn = 0;
+  employees.forEach(e=>{
+    const prev = [...logs].reverse().find(l=>l.id===e.id);
+    if(prev && prev.type==='in') currentlyIn++;
+  });
+  document.getElementById('statIn').textContent = currentlyIn;
+}
+function downloadRawCsv(){
+  if(!lastReportFiltered.length){ alert('ບໍ່ມີຂໍ້ມູນໃຫ້ດາວໂຫຼດ, ກະລຸນາກົດ "ຄົ້ນຫາ" ກ່ອນ'); return; }
+  let csv = 'ວັນເວລາ,ລະຫັດ,ຊື່,ປະເພດ\n';
+  lastReportFiltered.forEach(l=>{
+    csv += `${formatTime(l.timestamp)},${l.id},"${l.name}",${l.type==='in'?'ເຂົ້າ':'ອອກ'}\n`;
+  });
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'attendance-log.csv';
+  link.click();
+}
+
+// ---------- init ----------
+function renderScanDiagnostics(){
+  const stEl = document.getElementById('scanStationStatusText');
+  if(stEl) stEl.textContent = (station && station.code) ? ('ຕັ້ງແລ້ວ · ລະຫັດ ' + station.code) : 'ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ';
+}
+(async function init(){
+  await loadData();
+  renderRecent();
+  renderScanDiagnostics();
+  const params = new URLSearchParams(window.location.search);
+  const stn = params.get('stn');
+  if(stn){
+    await verifyStationCode(stn);
+  }
+})();
+</script>
+</body>
+</html>
