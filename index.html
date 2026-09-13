@@ -357,19 +357,31 @@ const KV_URL = 'https://jsonblob.com/api/jsonBlob/01a08a85-237d-7358-807d-6d6b6a
 async function loadData(){
   try{
     const res = await fetch(KV_URL);
+    if(!res.ok){
+      alert('ໂຫຼດຂໍ້ມູນລົ້ມເຫຼວ (HTTP '+res.status+') — ອາດເປັນບັນຫາເຄືອຂ່າຍ ຫຼື ຖານຂໍ້ມູນຖືກລຶບ');
+      employees=[]; logs=[]; station=null; return;
+    }
     const state = await res.json();
     employees = state.employees || [];
     logs = state.logs || [];
     station = state.station || null;
-  }catch(err){ employees=[]; logs=[]; station=null; }
+  }catch(err){
+    alert('ໂຫຼດຂໍ້ມູນລົ້ມເຫຼວ: ' + err.message);
+    employees=[]; logs=[]; station=null;
+  }
 }
 async function persistAll(){
   try{
-    await fetch(KV_URL, {
+    const res = await fetch(KV_URL, {
       method:'PUT', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({employees, logs, station})
     });
-  }catch(err){ /* offline or blocked — data stays in memory only for this session */ }
+    if(!res.ok){
+      alert('ບັນທຶກຂໍ້ມູນລົ້ມເຫຼວ (HTTP '+res.status+') — ຂໍ້ມູນທີ່ຫາກໍ່ປ່ຽນອາດບໍ່ຖືກບັນທຶກ ລອງໃໝ່ອີກຄັ້ງ');
+    }
+  }catch(err){
+    alert('ບັນທຶກຂໍ້ມູນລົ້ມເຫຼວ: ' + err.message + ' — ກວດສອບອິນເຕີເນັດແລ້ວລອງໃໝ່');
+  }
 }
 async function saveEmployees(){ await persistAll(); }
 async function saveLogs(){ await persistAll(); }
